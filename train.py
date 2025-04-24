@@ -63,13 +63,13 @@ if __name__ == "__main__":
     # agent = DQNAgent(state_size=(4, 84, 84), action_size=env.action_space.n)
     with open("mario-dqn-agent.pkl", "rb") as f:
         agent: DQNAgent = pickle.load(f)
+    print("Agent loaded from file")
     
     # Training loop
     num_episodes = 10000
-    scores = []
     
-    validation_episodes = 10
-    validation_interval = 1
+    validation_episodes = 1
+    validation_interval = 10
     validation_scores = []
     best_validation_score = -np.inf
     
@@ -80,21 +80,25 @@ if __name__ == "__main__":
             obs_stack.append(deepcopy(obs))
         total_reward = 0
         done = False
-
+        steps = 0
+        
         while not done:
             action = agent.get_action(np.stack(list(reversed(obs_stack))))
             
             next_obs, reward, done, info = env.step(action)
+            if info['life'] < 2:
+                done = True
+                reward = -15
+            steps += 1
             next_obs = clip_feature(next_obs)            
             # Add to replay buffer
             agent.replay_buffer.add(obs, action, reward, next_obs, done)
-            loss = agent.train()
+            if steps % 4 == 0:
+                loss = agent.train()
 
             obs_stack.append(next_obs)
             obs = next_obs
             total_reward += reward
-
-        scores.append(total_reward)
         
         if (episode + 1) % validation_interval == 0:
             
