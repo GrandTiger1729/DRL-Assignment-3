@@ -16,7 +16,7 @@ class Agent(object):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         
         self.dqn = DQN(self.action_space.n)
-        self.dqn.load_state_dict(torch.load("mario-dqn.pth", weights_only=True))
+        self.dqn.load_state_dict(torch.load("mario-dqn.pth", weights_only=False, map_location=self.device))
         self.dqn.eval()
         self.dqn.to(self.device)
         
