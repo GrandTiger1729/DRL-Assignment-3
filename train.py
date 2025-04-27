@@ -72,24 +72,24 @@ def train(env, agent: DQNAgent, num_episodes=NUM_EPISODES):
                 logging.info(f"New best model saved with score: {best_validation_score}")
 
 if __name__ == "__main__":
-    # # Set up logging
-    # logging.basicConfig(filename='training.log', level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+    # Set up logging
+    logging.basicConfig(filename='training.log', level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
     
-    # # Set up the environment
-    # env = make_env()
-    # set_seed(SEED, env)
-    
-    # # Train the agent
-    # agent = DQNAgent(state_dim=(FRAME_LENGTH, FEATURE_SIZE, FEATURE_SIZE), action_dim=env.action_space.n)
-    # train(env, agent, num_episodes=NUM_EPISODES)
-    # env.close()
-    
-    # Evaluate the agent
-    DEVICE = torch.device("cpu")
+    # Set up the environment
     env = make_env()
-    dqn = DQN((FRAME_LENGTH, FEATURE_SIZE, FEATURE_SIZE), env.action_space.n).to(DEVICE)
-    dqn.load_state_dict(torch.load("mario-dqn.pth", map_location=DEVICE))
-    dqn.eval()
-    mean_score = evaluate(env, dqn, num_episodes=10)
-    print(f"Mean score over 10 episodes: {mean_score}")
+    set_seed(SEED, env)
+    
+    # Train the agent
+    agent = DQNAgent(state_dim=(FRAME_LENGTH, FEATURE_SIZE, FEATURE_SIZE), action_dim=env.action_space.n)
+    train(env, agent, num_episodes=NUM_EPISODES)
     env.close()
+    
+    # # Evaluate the agent
+    # DEVICE = torch.device("cpu")
+    # env = make_env()
+    # dqn = DQN((FRAME_LENGTH, FEATURE_SIZE, FEATURE_SIZE), env.action_space.n).to(DEVICE)
+    # dqn.load_state_dict(torch.load("mario-dqn.pth", map_location=DEVICE))
+    # dqn.eval()
+    # mean_score = evaluate(env, dqn, num_episodes=10)
+    # print(f"Mean score over 10 episodes: {mean_score}")
+    # env.close()
