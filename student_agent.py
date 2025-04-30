@@ -18,7 +18,7 @@ def clip_feature(obs):
 # Do not modify the input of the 'act' function and the '__init__' function.
 class Agent(object):
     """Agent that acts randomly."""
-    def __init__(self):
+    def __init__(self, dqn=None):
         self.action_space = gym.spaces.Discrete(12)
         
         self.obs_stack = deque(maxlen=4)
@@ -26,10 +26,13 @@ class Agent(object):
         self.last_action = None
         
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.dqn = DQN((4, 84, 84), self.action_space.n)
-        self.dqn.load_state_dict(torch.load("mario-dqn.pth", weights_only=False, map_location=self.device))
-        self.dqn.eval()
-        self.dqn.to(self.device)
+        if dqn is not None:
+            self.dqn = dqn
+        else:
+            self.dqn = DQN((4, 84, 84), self.action_space.n)
+            self.dqn.load_state_dict(torch.load("mario-dqn.pth", weights_only=False, map_location=self.device))
+            self.dqn.eval()
+            self.dqn.to(self.device)
         
     def get_action(self, obs):
         obs = clip_feature(obs.copy())

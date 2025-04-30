@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import torch
 from tqdm import tqdm
@@ -5,6 +6,7 @@ from tqdm import tqdm
 from mario_env import make_env
 from model import DQN, DQNAgent
 from constants import *
+from localeval import evaluate
 
 import logging
 
@@ -16,31 +18,36 @@ def set_seed(seed, env):
         torch.cuda.manual_seed(seed)
         torch.backends.cudnn.benchmark = False
         torch.backends.cudnn.deterministic = True
-        
-def select_action(dqn, obs):
-    with torch.no_grad():
-        q_values = dqn(torch.tensor(obs, dtype=torch.float32, device=DEVICE).unsqueeze(0))
-        action = torch.argmax(q_values).item()
-    return action
-    
-def evaluate(env, dqn, num_episodes=VALIDATION_EPISODES):
-    scores = []
-    for _ in range(num_episodes):
-        obs = env.reset()
-        score = 0
-        done = False
-        while not done:
-            action = select_action(dqn, obs)
-            next_obs, reward, done, _ = env.step(action)
-            obs = next_obs
-            score += reward
-        scores.append(score)
-    return np.mean(scores)
 
-def train(env, agent: DQNAgent, num_episodes=NUM_EPISODES):
-    best_validation_score = -np.inf
-    
-    for episode in tqdm(range(num_episodes)):
+def validate(dqn, num_episodes=VALIDATION_EPISODES):
+    return evaluate(dqn, num_episodes=num_episodes)
+
+def save_checkpoint(agent, episode, best_validation_score, filename="checkpoint.pth"):
+    checkpoint = {
+        "episode": episode,
+        "best_validation_score": best_validation_score,
+        "dqn_state_dict": agent.dqn.state_dict(),
+        "dqn_target_state_dict": agent.dqn_target.state_dict(),
+        "optimizer_state_dict": agent.optimizer.state_dict(),
+        "epsilon": agent.epsilon,
+    }
+    torch.save(checkpoint, filename)
+    logging.info(f"Checkpoint saved at episode {episode}")
+
+def load_checkpoint(agent, filename="checkpoint.pth"):
+    checkpoint = torch.load(filename, map_location=DEVICE)
+    agent.dqn.load_state_dict(checkpoint["dqn_state_dict"])
+    agent.dqn_target.load_state_dict(checkpoint["dqn_target_state_dict"])
+    agent.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+    agent.epsilon = checkpoint["epsilon"]
+    logging.info(f"Checkpoint loaded from episode {checkpoint['episode']}")
+    return checkpoint["episode"], checkpoint["best_validation_score"]
+
+def train(env, agent: DQNAgent, num_episodes, start_episode=0, best_validation_score=-np.inf):
+    """
+    Train the DQN agent on the environment.
+    """
+    for episode in tqdm(range(start_episode, num_episodes)):
         obs = env.reset()
         score = 0
         done = False
@@ -60,16 +67,18 @@ def train(env, agent: DQNAgent, num_episodes=NUM_EPISODES):
             obs = next_obs
             score += reward
         
-        # Validation
+        # Validation step
         if (episode + 1) % VALIDATE_EVERY == 0:
-            avg_score = evaluate(env, agent.dqn)
-            # print(f"Episode {episode}, Average Validation Score: {avg_score}")
+            avg_score = validate(agent.dqn)
             logging.info(f"Episode {episode + 1}, Average Validation Score: {avg_score}")
             if avg_score > best_validation_score:
                 best_validation_score = avg_score
                 torch.save(agent.dqn.state_dict(), "mario-dqn.pth")
-                # print(f"New best model saved with score: {best_validation_score}")
                 logging.info(f"New best model saved with score: {best_validation_score}")
+        
+        # Save checkpoint every CHECKPOINT_EVERY episodes
+        if (episode + 1) % CHECKPOINT_EVERY == 0:
+            save_checkpoint(agent, episode + 1, best_validation_score)
 
 if __name__ == "__main__":
     # Set up logging
@@ -79,17 +88,15 @@ if __name__ == "__main__":
     env = make_env()
     set_seed(SEED, env)
     
-    # Train the agent
+    # Create agent
     agent = DQNAgent(state_dim=(FRAME_LENGTH, FEATURE_SIZE, FEATURE_SIZE), action_dim=env.action_space.n)
-    train(env, agent, num_episodes=NUM_EPISODES)
-    env.close()
     
-    # # Evaluate the agent
-    # DEVICE = torch.device("cpu")
-    # env = make_env()
-    # dqn = DQN((FRAME_LENGTH, FEATURE_SIZE, FEATURE_SIZE), env.action_space.n).to(DEVICE)
-    # dqn.load_state_dict(torch.load("mario-dqn.pth", map_location=DEVICE))
-    # dqn.eval()
-    # mean_score = evaluate(env, dqn, num_episodes=10)
-    # print(f"Mean score over 10 episodes: {mean_score}")
-    # env.close()
+    # Check for an existing checkpoint to resume training
+    start_episode = 0
+    best_validation_score = -np.inf
+    if os.path.exists("checkpoint.pth"):
+        start_episode, best_validation_score = load_checkpoint(agent)
+        logging.info(f"Resuming training from episode {start_episode}, best validation score: {best_validation_score}")
+    
+    train(env, agent, num_episodes=NUM_EPISODES, start_episode=start_episode, best_validation_score=best_validation_score)
+    env.close()

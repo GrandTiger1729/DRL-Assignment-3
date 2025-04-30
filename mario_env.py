@@ -14,12 +14,21 @@ class SkipFrame(gym.Wrapper):
     def __init__(self, env, skip=4):
         super(SkipFrame, self).__init__(env)
         self._skip = skip
+        self.prev_life = 2
 
     def step(self, action):
         total_reward = 0.0
         done = False
+        if action in BANNED_ACTIONS:
+            total_reward -= ACTION_PENALTY
         for _ in range(self._skip):
             obs, reward, done, info = self.env.step(action)
+            if info['life'] < self.prev_life:
+                total_reward -= DEATH_PENALTY
+            elif info['life'] > self.prev_life:
+                total_reward += LIVE_AWARD
+            self.prev_life = info['life']
+            
             total_reward += reward
             if done:
                 break
